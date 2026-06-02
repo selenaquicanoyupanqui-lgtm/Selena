@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Estudiantes y Asistencia QR</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<style>
+body{background:#f5f7fa;padding:20px}
+.card{margin-bottom:20px}
+#calendar{background:white;padding:10px;border-radius:10px}
+</style>
+</head>
+<body>
+<div class="container">
+<h1 class="mb-4">Sistema de Gestión de Estudiantes</h1>
+
+<div class="card p-3">
+<button class="btn btn-primary" onclick="nuevoEstudiante()">Registrar Estudiante</button>
+<button class="btn btn-success" onclick="exportar()">Exportar Backup</button>
+<input type="file" id="importFile" onchange="importar(event)">
+</div>
+
+<div class="card p-3">
+<table class="table table-striped" id="tabla">
+<thead><tr><th>DNI</th><th>Nombre</th><th>Género</th><th>Edad</th><th>Teléfono</th><th>Acciones</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+
+<div class="card p-3">
+<h3>Escáner QR</h3>
+<div id="reader"></div>
+<button class="btn btn-warning mt-2" onclick="iniciarQR()">Abrir Cámara</button>
+</div>
+
+<div class="card p-3">
+<h3>Asistencias</h3>
+<table class="table" id="tablaAsistencia">
+<thead><tr><th>DNI</th><th>Fecha</th><th>Hora</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+
+<div id="calendar"></div>
+</div>
+
+<script>
+let estudiantes = JSON.parse(localStorage.getItem("estudiantes")) || [
+{dni:"74852136",nombre:"Valeria Sofía Quispe Huamán",genero:"Femenino",edad:19,telefono:"987654321"},
+{dni:"71584329",nombre:"Diego Andrés Flores Ramos",genero:"Masculino",edad:21,telefono:"945782136"},
+{dni:"76921485",nombre:"Camila Fernanda Torres Salazar",genero:"Femenino",edad:20,telefono:"978451236"},
+{dni:"72369814",nombre:"José Miguel Rojas Castillo",genero:"Masculino",edad:22,telefono:"956874123"},
+{dni:"78124596",nombre:"Luciana María Paredes Gómez",genero:"Femenino",edad:18,telefono:"934567812"},
+{dni:"73485216",nombre:"Kevin Alexander Mendoza López",genero:"Masculino",edad:23,telefono:"967812345"},
+{dni:"79213658",nombre:"Daniela Alejandra Vargas Pérez",genero:"Femenino",edad:20,telefono:"912345678"},
+{dni:"74698523",nombre:"Luis Fernando Sánchez Díaz",genero:"Masculino",edad:21,telefono:"976543218"},
+{dni:"71852369",nombre:"María José Cárdenas Ruiz",genero:"Femenino",edad:19,telefono:"954321876"},
+{dni:"77521489",nombre:"Javier Alonso Herrera Chávez",genero:"Masculino",edad:24,telefono:"923456781"},
+{dni:"73698541",nombre:"Andrea Nicole Gutiérrez León",genero:"Femenino",edad:22,telefono:"988123456"},
+{dni:"78412536",nombre:"Renato Sebastián Aguilar Medina",genero:"Masculino",edad:20,telefono:"966789123"},
+{dni:"72145896",nombre:"Katherine Lizbeth Espinoza Silva",genero:"Femenino",edad:21,telefono:"955678912"},
+{dni:"76895412",nombre:"Carlos Eduardo Navarro Ríos",genero:"Masculino",edad:19,telefono:"977891234"},
+{dni:"71369852",nombre:"Fiorella Milagros Palacios Torres",genero:"Femenino",edad:23,telefono:"944123789"},
+{dni:"78965214",nombre:"Christian David Vega Alarcón",genero:"Masculino",edad:22,telefono:"933456127"},
+{dni:"74215896",nombre:"Melissa Antonella Cruz Fernández",genero:"Femenino",edad:20,telefono:"911234567"},
+{dni:"77698521",nombre:"Ángel Gabriel Benites Castro",genero:"Masculino",edad:18,telefono:"999876543"},
+{dni:"73124589",nombre:"Paola Estefanía Ramírez Soto",genero:"Femenino",edad:21,telefono:"922345678"},
+{dni:"79521436",nombre:"Marco Antonio Valdez Campos",genero:"Masculino",edad:24,telefono:"988765432"}
+];
+
+let asistencias = JSON.parse(localStorage.getItem("asistencias")) || [];
+
+function guardar(){
+localStorage.setItem("estudiantes",JSON.stringify(estudiantes));
+localStorage.setItem("asistencias",JSON.stringify(asistencias));
+}
+
+function render(){
+let tb=document.querySelector("#tabla tbody");
+tb.innerHTML="";
+estudiantes.forEach((e,i)=>{
+tb.innerHTML+=`<tr>
+<td>${e.dni}</td><td>${e.nombre}</td><td>${e.genero}</td>
+<td>${e.edad}</td><td>${e.telefono}</td>
+<td>
+<button class='btn btn-sm btn-info' onclick='editar(${i})'>Editar</button>
+<button class='btn btn-sm btn-danger' onclick='eliminar(${i})'>Eliminar</button>
+</td></tr>`;
+});
+renderAsistencia();
+guardar();
+}
+
+function renderAsistencia(){
+let tb=document.querySelector("#tablaAsistencia tbody");
+tb.innerHTML="";
+asistencias.forEach(a=>tb.innerHTML+=`<tr><td>${a.dni}</td><td>${a.fecha}</td><td>${a.hora}</td></tr>`);
+}
+
+async function nuevoEstudiante(){
+const {value:f}=await Swal.fire({
+title:'Nuevo Estudiante',
+html:`<input id=dni class='swal2-input' placeholder='DNI'>
+<input id=nom class='swal2-input' placeholder='Nombre'>
+<input id=gen class='swal2-input' placeholder='Genero'>
+<input id=edad class='swal2-input' placeholder='Edad'>
+<input id=tel class='swal2-input' placeholder='Telefono'>`,
+preConfirm:()=>({dni:dni.value,nombre:nom.value,genero:gen.value,edad:edad.value,telefono:tel.value})
+});
+if(f){estudiantes.push(f);render();}
+}
+
+function editar(i){nuevoEstudiante();}
+function eliminar(i){estudiantes.splice(i,1);render();}
+
+function exportar(){
+let data="const backup="+JSON.stringify({estudiantes,asistencias},null,2);
+let blob=new Blob([data],{type:'text/javascript'});
+let a=document.createElement('a');
+a.href=URL.createObjectURL(blob);
+a.download='backup.js';
+a.click();
+}
+
+function importar(ev){
+let file=ev.target.files[0];
+let reader=new FileReader();
+reader.onload=e=>{
+let txt=e.target.result;
+try{
+let json=JSON.parse(txt);
+estudiantes=json.estudiantes||[];
+asistencias=json.asistencias||[];
+render();
+}catch(err){alert("Archivo inválido");}
+};
+reader.readAsText(file);
+}
+
+function registrarAsistencia(dni){
+let ahora=new Date();
+asistencias.push({
+dni,
+fecha:ahora.toLocaleDateString(),
+hora:ahora.toLocaleTimeString()
+});
+render();
+}
+
+function iniciarQR(){
+const qr=new Html5Qrcode("reader");
+qr.start({facingMode:"environment"},{fps:10,qrbox:250},
+(decoded)=>{registrarAsistencia(decoded);Swal.fire("Asistencia registrada",decoded,"success");}
+);
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+render();
+new FullCalendar.Calendar(document.getElementById('calendar'),{
+initialView:'dayGridMonth'
+}).render();
+});
+</script>
+</body>
+</html>
